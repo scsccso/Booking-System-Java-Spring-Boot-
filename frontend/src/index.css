@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+}
+
+@layer utilities {
+  .animate-flash-red {
+    animation: flashRed 1.5s ease-out;
+  }
+  .animate-flash-green {
+    animation: flashGreen 1.5s ease-out;
+  }
+}
+
+@keyframes flashRed {
+  0% { background-color: #fee2e2; } /* red-100 */
+  10% { background-color: #fca5a5; } /* red-300 */
+  100% { background-color: #f3f4f6; } /* gray-100 */
+}
+
+@keyframes flashGreen {
+  0% { background-color: #dcfce7; } /* green-100 */
+  10% { background-color: #86efac; } /* green-300 */
+  100% { background-color: #f9fafb; } /* gray-50 */
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}

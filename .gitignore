@@ -1,0 +1,18 @@
+# 后端构建阻断
+backend/target/
+backend/.idea/
+backend/*.iml
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+
+# 前端依赖与产物阻断
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.eslintcache
+
+# 系统与日志垃圾
+.DS_Store
+*.log
+.vscode/
