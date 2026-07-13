@@ -17,10 +17,6 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if (request.getMethod().equalsIgnoreCase("OPTIONS")) {
-            return true;
-        }
-
         String requestURI = request.getRequestURI();
         
         // Only intercept /api/admin/** and /api/bookings/**

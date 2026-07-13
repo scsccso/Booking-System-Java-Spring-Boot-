@@ -8,13 +8,13 @@ const HOURS = Array.from({ length: 9 }, (_, i) => i + 9); // 9 to 17
 const RESOURCE_METADATA_MAP: Record<string, { icon: React.ReactNode, meta: string, bgClass: string, textClass: string }> = {
   'ROOM': {
     icon: <Users size={20} />,
-    meta: '👥 8 人间 · 🖥️ 4K 投影',
+    meta: '👥 8 Seats · 🖥️ 4K Projector',
     bgClass: 'bg-indigo-50 group-hover:bg-indigo-100',
     textClass: 'text-indigo-600'
   },
   'DESK': {
     icon: <Monitor size={20} />,
-    meta: '🔌 独立双插 · 🪟 靠窗',
+    meta: '🔌 Dual Outlets · 🪟 Window View',
     bgClass: 'bg-emerald-50 group-hover:bg-emerald-100',
     textClass: 'text-emerald-600'
   }
@@ -65,13 +65,12 @@ export default function BookingPage() {
     });
   };
 
-  // 1. Generate next 7 days for the date slider
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
     return {
       dateStr: d.toLocaleDateString('en-CA'),
-      dayName: i === 0 ? '今天' : i === 1 ? '明天' : d.toLocaleDateString('zh-CN', { weekday: 'short' }),
+      dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' }),
       dayNum: d.getDate()
     };
   });
@@ -375,8 +374,8 @@ export default function BookingPage() {
                   <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
                      <CalendarX className="w-8 h-8 text-gray-300" />
                   </div>
-                  <p className="text-sm font-medium text-gray-500 leading-relaxed max-w-[200px] mx-auto">
-                    今日暂无行程，从左侧网格中挑选一个工位开启高效一天吧！
+                  <p className="text-sm font-medium text-gray-500 leading-relaxed max-w-[250px] mx-auto">
+                    No itineraries scheduled for today. Pick a hot desk or meeting room from the grid to jumpstart your day!
                   </p>
                 </div>
               ) : (

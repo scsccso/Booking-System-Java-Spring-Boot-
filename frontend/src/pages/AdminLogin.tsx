@@ -26,11 +26,9 @@ export default function AdminLogin() {
       localStorage.setItem('role', role);
       navigate('/admin');
     } catch (err: any) {
-      if (err.response?.data?.message) {
-        setErrorMsg(err.response.data.message);
-      } else {
-        setErrorMsg('An error occurred during authentication.');
-      }
+      console.error("Full Login Axios Error: ", err);
+      const errorMessage = err.response?.data?.message || "Network connection failed. Please check backend status.";
+      setErrorMsg(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -107,9 +105,9 @@ export default function AdminLogin() {
           <div className="mt-8 text-center">
             <button 
               onClick={() => navigate('/login')}
-              className="text-xs font-medium text-slate-400 hover:text-cyan-400 transition-colors uppercase tracking-wider"
+              className="text-sm font-medium text-cyan-600 hover:text-cyan-800 transition-colors"
             >
-              &larr; 返回用户预约端
+              &larr; Return to User Portal
             </button>
           </div>
         </div>

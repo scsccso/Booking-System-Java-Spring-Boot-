@@ -44,13 +44,13 @@ public class BookingService {
         );
 
         if (overlappingCount > 0) {
-            throw new ResourceConflictException("The resource is already booked for the specified time slot.");
+            throw new ResourceConflictException("The resource is already reserved for the specified time slot.");
         }
 
         int requestedHours = request.getEndHour() - request.getStartHour();
         int currentBookedHours = bookingRepository.calculateTotalHoursByUserAndDate(request.getUserId(), request.getBookingDate());
         if (currentBookedHours + requestedHours > 4) {
-            throw new IllegalArgumentException("Daily booking limit of 4 hours exceeded. You have " + (4 - currentBookedHours) + " hours remaining today.");
+            throw new IllegalArgumentException("Daily booking quota limit of 4 hours exceeded. You have " + (4 - currentBookedHours) + " hours remaining today.");
         }
 
         // 3. Create and save booking
@@ -138,7 +138,7 @@ public class BookingService {
         }
         
         if (booking.getBookingDate().isEqual(LocalDate.now()) && java.time.LocalTime.now().getHour() >= booking.getStartHour()) {
-            throw new IllegalArgumentException("Booking is locked and cannot be cancelled.");
+            throw new IllegalArgumentException("Booking has already started and cannot be cancelled.");
         }
         
         if (booking.getBookingDate().isBefore(LocalDate.now())) {
