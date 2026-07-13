@@ -1,74 +1,114 @@
-# Enterprise-Grade Workspace & Conference Room Booking System (FlexiSpace MVP)
+# FlexiSpace: Enterprise Time-Shared Workspace Booking System
 
-## 1. Project Overview & Technology Stack
+## 1. Project Identity & Tech Stack
+**FlexiSpace** is a highly concurrent, real-time time-shared workspace and conference room booking system designed for modern enterprise hybrid work models.
 
-**FlexiSpace MVP** is a lightweight, highly concurrent fractional workspace booking system designed for modern Hybrid Work models. This system eschews bloated third-party middleware, deeply leveraging underlying framework features to achieve commercial-grade real-time data synchronization and financial-grade concurrent transaction consistency under a minimalist architecture with **zero external service dependencies (No Redis, No MQ)**.
+| Tier | Technology |
+|---|---|
+| **Backend** | Spring Boot 3.x, Spring Data JPA |
+| **Frontend** | React 18, Vite, TypeScript, Tailwind CSS |
+| **Database** | H2 Embedded Database |
+| **Live Sync** | Server-Sent Events (SSE) |
+| **Security** | Lightweight JWT Authentication |
 
-### Core Technology Stack
-- **Backend Architecture**: Spring Boot 3.x, Spring Data JPA (Hibernate), H2 Database
-- **Real-Time Communication**: Native Server-Sent Events (SSE), Spring ApplicationEvents
-- **Security & Authorization**: Native JWT Interceptors (io.jsonwebtoken:jjwt), Role-Based Dual-Client Routing Isolation
-- **Frontend Ecosystem**: React 18 (Hooks Architecture), Vite, Tailwind CSS, Axios, Lucide React
+## 2. The Problem & Pure Architecture Solution
+**The Challenge:** Traditional workspace management systems often struggle under high concurrency or sudden traffic bursts, leading to overlapping reservations (Double Bookings). Furthermore, static grid interfaces result in delayed state updates across multiple user terminals, degrading the collaborative experience.
 
----
+**The Solution:** FlexiSpace introduces underlying strong-consistency transaction controls combined with a unidirectional reactive event broadcast stream. This pure architecture guarantees absolute data integrity while delivering a seamless, zero-refresh collaborative experience.
 
-## 2. Dual-Client Feature Matrix & UI/UX Breakdown
+## 3. Features Breakdown (User Side vs Admin Side)
 
-The system enforces strict User/Admin privilege isolation, with both clients featuring entirely independent host layouts and business rule engines:
+### User Side
+- **7-Day Horizontal Scrolling Density Calendar:** A sleek, modern slider replacing native date inputs, automatically rendering the next 7 days.
+- **Rich Media Asset Cards:** Visual capacity indicators and power outlet labels for an enhanced booking experience.
+- **Real-Time Daily Quota Counter:** Hard enterprise constraint strictly limiting reservations to a maximum of 4 hours per user per day.
+- **Live Itinerary Panel:** Interactive upcoming schedule featuring time-locked cancellations (cancellations are disabled once the time slot begins).
+- **Flash Highlight:** SSE-driven atomic cell flashing (green/red indicators) to visually broadcast state mutations without triggering a full page re-render.
 
-| Module | Target Audience | Core Features & Commercial-Grade UX |
-| :--- | :--- | :--- |
-| **Intelligent Console** | Standard User | **7-Day Smart Slider Calendar**: Dynamically calculates booking density to display colored indicator dots (Red/Yellow/Green), providing intuitive capacity warnings.<br>**Rich Media Asset Cards**: Frontend static configuration mapping physical metadata (e.g., `👥 8 Seats · 🖥️ 4K Projector`), reducing network transmission overhead.<br>**Hardcore Quota Settlement**: Strictly enforces a "4 hours per user per day" aggregated limit, automatically circuit-breaking frontend submissions when the balance is insufficient.<br>**Smart Itinerary Management**: Features time-locked self-cancellation (the cancellation entry point is instantly disabled once the booked time slot begins).<br>**Defensive Interactions**: Overrides irreversible actions globally, forcing the display of a secondary confirmation Modal. |
-| **Management Dashboard** | System Admin | **Global Dispatch Board**: Real-time aggregation of total resource booking status and occupancy rates.<br>**One-Click Circuit Breaker**: Smoothly toggles resource states to `MAINTENANCE` and forcibly releases all associated bookings.<br>**In-Memory Frictionless Interactivity**: Abandons heavy backend search/filter APIs, utilizing `useMemo` combined with native `Array.sort/filter` to achieve zero-latency real-time search and column-level sorting entirely within the frontend memory. |
+### Admin Side
+- **Live Global Analytics:** Real-time metrics displaying overall occupancy rates and system utilization.
+- **Asset Maintenance Hot-Swapping:** Instantaneous toggle of workspace states (ACTIVE ↔ MAINTENANCE) with forced release of associated bookings.
+- **Zero-Network Ultra-Fast Searching:** Memory-based data grid sorting and searching utilizing React `useMemo` for zero network overhead.
+- **Administrative Override:** Global authority to cancel bookings and instantly free up resources.
 
----
+## 4. Concurrency & Real-Time Sync Deep Dive (Core Technical Highlights)
 
-## 3. Hardcore Technical Highlights (Deep Dive)
+### High Concurrency Control
+We deeply integrate `PESSIMISTIC_WRITE` exclusive locks with the highest transaction isolation level `@Transactional(isolation = Isolation.SERIALIZABLE)`. During the pessimistic lock closure, the system performs real-time quota accumulation validation. This mathematically eliminates Phantom Reads and concurrency loopholes, ensuring zero double bookings and absolute adherence to quota constraints.
 
-This project refuses to settle for superficial CRUD operations, focusing heavily on solving the complex engineering challenges of high-concurrency overbooking prevention and multi-client state synchronization:
+### Server-Sent Events (SSE) Data Synchronization
+Leveraging Spring Events' asynchronous mechanism combined with the browser's native `EventSource`, we constructed an incremental JSON broadcast pipeline. When a booking state changes, the frontend receives the event and performs an In-place Local State Mutation to instantly update the grid, preventing overlap anomalies with zero polling overhead.
 
-### 3.1 Absolute Consistency with Zero External Dependencies (Serializable Isolation + Pessimistic Write Locking)
-In high-concurrency booking scenarios, malicious users might attempt to bypass the daily 4-hour quota limit via concurrent requests (a classic "Phantom Read" anomaly).
-- **Architectural Solution**: Within the core write pipeline of `BookingService`, the system utilizes `@Lock(LockModeType.PESSIMISTIC_WRITE)` to enforce an exclusive lock on the resource row, and **forcefully elevates the transaction isolation level to `@Transactional(isolation = Isolation.SERIALIZABLE)`**.
-- **Under the Hood**: Standard `REPEATABLE_READ` cannot prevent two concurrent transactions from simultaneously reading an aggregated "3 hours booked" state and committing independently. By enabling `SERIALIZABLE` transaction isolation, the database engine locks the index range covered by the aggregation query (`calculateTotalHoursByUserAndDate`), mathematically eradicating phantom reads and overbooking loopholes at the storage level, achieving financial-grade absolute data consistency.
+### Network Resiliency
+The frontend features a robust Axios interceptor pipeline. It includes an automatic 401 circuit breaker that immediately redirects expired sessions to the login portal. Additionally, it intelligently handles transient 5xx server errors with a 500ms delayed single auto-retry mechanism for self-healing operations.
 
-### 3.2 Real-Time Multi-Client Synchronization (One-Way Broadcast + Atomic State Mutation)
-Without introducing the handshake overhead of WebSockets or the operational complexity of message queues, the system realizes seamless multi-client collaboration.
-- **Server-Sent Events (SSE) Broadcast**: The backend achieves business layer decoupling via Spring's `ApplicationEventPublisher`, pushing transaction states into a pool of `SseEmitter` instances managed by a `CopyOnWriteArrayList`, and delivering incremental JSON payloads to clients via HTTP/1.1 persistent connections.
-- **Reactive UI Mutation & Flash Highlights**: Upon intercepting the SSE push, the frontend `useUserBooking` Hook executes local state incremental merging and filtering directly in memory without a page refresh. Concurrently, the frontend precisely targets the affected grid coordinates, injecting a 1.5-second CSS keyframe animation (`animate-flash-red` for new reservations / `animate-flash-green` for releases), perfectly replicating the tactile real-time feedback of commercial collaboration software.
+## 5. API Endpoints & Monorepo Structure
 
-### 3.3 Network Resiliency & Frontend Disaster Recovery
-- **401 Auto-Circuit Breaker**: An Axios response interceptor globally catches token validation failures, executing an atomic `localStorage` wipe and forcefully decoupling the stale state, redirecting the router back to the login portal.
-- **5xx Transient Retry Compensation**: To handle transient network jitter or brief 500/502 server overloads during high concurrency, the interceptor embeds a 500ms delayed single auto-retry closure. This heals the network blip without user awareness, significantly enhancing frontend robustness in complex network environments.
+### RESTful API Endpoints
+| Method | Endpoint | Access | Description |
+|---|---|---|---|
+| POST | `/api/auth/login` | Public | Authenticate user and generate JWT |
+| GET | `/api/bookings/stream` | Public (SSE) | Unidirectional real-time event broadcast |
+| GET | `/api/bookings` | Protected (USER/ADMIN) | Fetch daily workspace bookings |
+| POST | `/api/bookings` | Protected (USER) | Create a booking (validates 4-hour quota) |
+| DELETE | `/api/bookings/{id}` | Protected (USER/ADMIN)| Cancel an existing booking |
+| GET | `/api/admin/resources` | Protected (ADMIN) | Fetch all system workspaces |
+| PUT | `/api/admin/resources/{id}`| Protected (ADMIN) | Toggle ACTIVE / MAINTENANCE status |
 
----
+### Monorepo Structure
+```text
+FlexiSpace/
+├── backend/
+│   ├── src/main/java/com/example/booking/
+│   │   ├── config/        # Global CorsFilter, WebMvcConfigurer
+│   │   ├── controller/    # Auth, Booking, Admin, Sse Controller
+│   │   ├── domain/        # Entities & Enums (Role, Status)
+│   │   ├── dto/           # Request/Response Contracts
+│   │   ├── exception/     # GlobalExceptionHandler
+│   │   ├── repository/    # JPA Interfaces with Pessimistic Locks
+│   │   ├── security/      # JwtUtil, AuthInterceptor
+│   │   └── service/       # Transactional & Quota Validation Logic
+│   └── pom.xml
+└── frontend/
+    ├── src/
+    │   ├── api/           # Axios Interceptor (401 & 5xx Retry)
+    │   ├── components/    # Reusable UI (ProtectedRoute)
+    │   ├── layouts/       # Dual-Client Layouts (UserLayout, AdminLayout)
+    │   ├── pages/         # BookingPage, AdminDashboard, Logins
+    │   ├── utils/         # auth.ts (Authentication helpers)
+    │   ├── App.tsx        # React Router v6 Configuration
+    │   └── main.tsx
+    ├── package.json
+    └── tailwind.config.js
+```
 
-## 4. Quickstart & Demonstration Credentials
+## 6. Local Development & Setup
 
-### Environment Startup
-Please launch the backend and frontend services in separate independent terminals:
-
-**Backend (Spring Boot)**
+### 1. Start Backend (Spring Boot)
+Open a terminal and start the backend service:
 ```bash
 cd backend
+mvn clean package -DskipTests
 mvn spring-boot:run
 ```
-*(Backend runs on http://localhost:8081)*
+*The Spring Boot server will run on http://localhost:8081*
 
-**Frontend (React/Vite)**
+### 2. Start Frontend (React/Vite)
+Open a separate terminal to launch the frontend:
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
-*(Frontend runs on http://localhost:5173)*
+*The Vite development server will run on http://localhost:5173*
 
-### Demonstration Credentials & Best Practice (Dual-Browser Testing)
-The system automatically initializes demo accounts upon startup via JPA `data.sql`:
-- **Standard User**: `user01` / `123456`
-- **System Admin**: `admin01` / `123456`
+### 3. Live Sync Demonstration
+The database is pre-seeded with the following credentials:
+- **User Account:** `user01` (Password: `123456`)
+- **Admin Account:** `admin01` (Password: `123456`)
 
-**🌟 Highly Recommended Demonstration Flow**:
-1. Open the left half of your screen with a browser, log in as `user01`, and remain on the Workspace Grid page.
-2. Open the right half of your screen (or an incognito window), navigate to `/admin/login`, and log in as `admin01`.
-3. From the Admin Dashboard, set a specific resource to `Maintenance`, or forcefully delete an order.
-4. **Observe the left User UI**: You will instantly witness the corresponding grid cell emit a green/red flash animation, and the daily quota will update automatically in milliseconds—experiencing the seamless SSE real-time synchronization firsthand!
+**🌟 Demonstration Guide:**
+1. Open two independent browser windows (or one incognito window).
+2. Log into the **User Portal** (`user01`) in one window and the **Admin Dashboard** (`admin01`) in the other.
+3. Make a booking or cancel an itinerary on the User side, or toggle a workspace's maintenance status on the Admin side.
+4. Watch the instantaneous atomic cell flashing (Flash Highlight) synchronize across both screens in real-time, showcasing the true power of the SSE broadcast pipeline!
