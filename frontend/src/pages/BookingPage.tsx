@@ -1,22 +1,21 @@
 import { useState } from 'react';
-import { Monitor, Users, AlertCircle, CheckCircle, Clock, Trash2, Calendar, CalendarX, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Monitor, Users, AlertCircle, CheckCircle, Clock, Trash2, Calendar, CalendarX, Zap } from 'lucide-react';
 import { useUserBooking } from '../hooks/useUserBooking';
 
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 9); // 9 to 17
 
-// 2. RESOURCE_METADATA_MAP
-const RESOURCE_METADATA_MAP: Record<string, { icon: React.ReactNode, meta: string, bgClass: string, textClass: string }> = {
+const RESOURCE_METADATA_MAP: Record<string, { icon: React.ReactNode, meta: string, accentBg: string, accentText: string }> = {
   'ROOM': {
-    icon: <Users size={20} />,
+    icon: <Users size={16} />,
     meta: '👥 8 Seats · 🖥️ 4K Projector',
-    bgClass: 'bg-indigo-50 group-hover:bg-indigo-100',
-    textClass: 'text-indigo-600'
+    accentBg: 'bg-violet-100',
+    accentText: 'text-violet-600',
   },
   'DESK': {
-    icon: <Monitor size={20} />,
+    icon: <Monitor size={16} />,
     meta: '🔌 Dual Outlets · 🪟 Window View',
-    bgClass: 'bg-emerald-50 group-hover:bg-emerald-100',
-    textClass: 'text-emerald-600'
+    accentBg: 'bg-emerald-100',
+    accentText: 'text-emerald-600',
   }
 };
 
@@ -39,13 +38,12 @@ export default function BookingPage() {
     flashSlots,
     clearMessages
   } = useUserBooking();
-  
+
   const [selectedSlot, setSelectedSlot] = useState<{ resourceId: number, hour: number, duration: number } | null>(null);
 
   const todayStr = new Date().toLocaleDateString('en-CA');
   const currentHour = new Date().getHours();
 
-  // Modal State
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -70,7 +68,7 @@ export default function BookingPage() {
     d.setDate(d.getDate() + i);
     return {
       dateStr: d.toLocaleDateString('en-CA'),
-      dayName: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' }),
+      dayName: i === 0 ? 'Today' : i === 1 ? 'Tmrw' : d.toLocaleDateString('en-US', { weekday: 'short' }),
       dayNum: d.getDate()
     };
   });
@@ -84,167 +82,175 @@ export default function BookingPage() {
   const handleConfirmBooking = async () => {
     if (!selectedSlot) return;
     const success = await validateAndSubmit(
-      selectedSlot.resourceId, 
-      selectedSlot.hour, 
+      selectedSlot.resourceId,
+      selectedSlot.hour,
       selectedSlot.hour + selectedSlot.duration
     );
-    if (success) {
-      setSelectedSlot(null);
-    }
+    if (success) setSelectedSlot(null);
   };
 
   const selectedResource = selectedSlot ? resources.find(r => r.id === selectedSlot.resourceId) : null;
   const isQuotaExceeded = selectedSlot && (selectedDate === todayStr && selectedSlot.duration > remainingQuota);
+  const usedHours = dailyQuota - remainingQuota;
+  const quotaPct = (usedHours / dailyQuota) * 100;
 
   return (
     <div className="max-w-[1400px] mx-auto p-4 sm:p-6 my-4">
-      
       <div className="flex flex-col xl:flex-row gap-6 items-start">
-        
-        {/* LEFT PANE: 70% GRID */}
+
+        {/* ────────── LEFT PANE: GRID ────────── */}
         <div className="w-full xl:w-[70%]">
-          
-          {/* Header & 7-Day Date Slider */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
-            <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight mb-4">Workspace Grid</h1>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+
+          {/* 7-Day Slider */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm mb-5 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Workspace Grid</h1>
+              <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full tracking-wide">
+                {selectedDate}
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
               {next7Days.map(day => {
                 const isSelected = selectedDate === day.dateStr;
-                
-                // Capacity logic calculation (rough estimate for the dot)
-                // In a real app we might fetch this aggregate from backend, but here we estimate based on loaded bookings if it's the selected day
-                // Actually since `bookings` is only for `selectedDate`, we can only show real dot for selectedDate, or fake it for others. 
-                // We'll calculate accurately for the selected date, and assume green for others just for visual demonstration, or fetch per day.
-                let dotColor = 'bg-gray-300';
+                let dotColor = 'bg-slate-200';
                 if (isSelected && resources.length > 0) {
-                    const totalSlots = resources.length * HOURS.length;
-                    const bookedSlots = bookings.length;
-                    const ratio = bookedSlots / totalSlots;
-                    if (ratio > 0.8) dotColor = 'bg-red-500';
-                    else if (ratio > 0.5) dotColor = 'bg-yellow-400';
-                    else dotColor = 'bg-green-500';
+                  const ratio = bookings.length / (resources.length * HOURS.length);
+                  dotColor = ratio > 0.8 ? 'bg-red-400' : ratio > 0.5 ? 'bg-amber-400' : 'bg-emerald-400';
                 } else {
-                    // Placeholder for non-loaded dates
-                    dotColor = 'bg-green-400';
+                  dotColor = 'bg-emerald-300';
                 }
-
                 return (
                   <button
                     key={day.dateStr}
                     onClick={() => { setSelectedDate(day.dateStr); setSelectedSlot(null); }}
-                    className={`
-                      flex-shrink-0 w-20 py-3 rounded-xl flex flex-col items-center justify-center transition-all duration-300 border-2
-                      ${isSelected ? 'border-orange-500 bg-orange-50 shadow-sm shadow-orange-500/20' : 'border-transparent hover:bg-gray-50 hover:border-gray-200 bg-white'}
-                    `}
+                    className={`flex-shrink-0 w-[72px] py-3 rounded-xl flex flex-col items-center justify-center transition-all duration-200 border
+                      ${isSelected
+                        ? 'border-blue-500 bg-blue-600 shadow-lg shadow-blue-600/25'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
                   >
-                    <span className={`text-[11px] font-bold tracking-widest uppercase ${isSelected ? 'text-orange-600' : 'text-gray-400'}`}>
+                    <span className={`text-[10px] font-black tracking-widest uppercase ${isSelected ? 'text-blue-200' : 'text-slate-400'}`}>
                       {day.dayName}
                     </span>
-                    <span className={`text-xl font-black mt-1 ${isSelected ? 'text-orange-700' : 'text-gray-700'}`}>
+                    <span className={`text-lg font-black mt-0.5 ${isSelected ? 'text-white' : 'text-slate-700'}`}>
                       {day.dayNum}
                     </span>
-                    <div className={`w-1.5 h-1.5 rounded-full mt-2 transition-colors ${dotColor}`}></div>
+                    <div className={`w-1 h-1 rounded-full mt-1.5 ${dotColor}`} />
                   </button>
                 );
               })}
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Grid Matrix */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
             {loading ? (
-              /* 3. SKELETON LOADER */
               <div className="p-6">
-                 <div className="flex border-b border-gray-100 pb-4 mb-4">
-                  <div className="w-56 text-xs font-bold text-gray-300 uppercase tracking-widest px-2">Resource</div>
-                  {HOURS.map(h => <div key={h} className="flex-1 text-center text-xs font-bold text-gray-300">{h}:00</div>)}
-                 </div>
-                 <div className="space-y-4">
-                   {Array.from({length: 5}).map((_, idx) => (
-                     <div key={idx} className="flex items-center">
-                       <div className="w-56 flex items-center pr-4">
-                         <div className="w-10 h-10 bg-gray-200 rounded-xl mr-3 animate-pulse"></div>
-                         <div className="space-y-2 flex-1">
-                           <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse"></div>
-                           <div className="h-2 bg-gray-100 rounded w-1/2 animate-pulse"></div>
-                         </div>
-                       </div>
-                       {HOURS.map(h => (
-                          <div key={h} className="flex-1 px-1 h-12">
-                            <div className="w-full h-full bg-gray-100 rounded-xl animate-pulse delay-75"></div>
-                          </div>
-                       ))}
-                     </div>
-                   ))}
-                 </div>
+                <div className="flex border-b border-slate-100 pb-4 mb-4">
+                  <div className="w-56 h-4 bg-slate-100 rounded animate-pulse" />
+                  {HOURS.map(h => <div key={h} className="flex-1 mx-1 h-4 bg-slate-100 rounded animate-pulse" />)}
+                </div>
+                <div className="space-y-4">
+                  {Array.from({ length: 4 }).map((_, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="w-56 h-12 bg-slate-100 rounded-xl animate-pulse" />
+                      {HOURS.map(h => (
+                        <div key={h} className="flex-1 h-12 bg-slate-100 rounded-xl animate-pulse" />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <div className="min-w-[800px] p-6">
-                  {/* Header row */}
-                  <div className="flex border-b border-gray-100 pb-4 mb-4">
-                    <div className="w-64 text-xs font-bold text-gray-400 uppercase tracking-widest px-2">Resource Asset</div>
+                <div className="min-w-[800px] p-5">
+                  {/* Hour header */}
+                  <div className="flex border-b border-slate-100 pb-3 mb-4">
+                    <div className="w-60 text-[10px] font-black text-slate-300 uppercase tracking-[0.15em] px-2">Asset</div>
                     {HOURS.map(h => (
-                      <div key={h} className="flex-1 text-center text-xs font-bold text-gray-400">
+                      <div key={h} className="flex-1 text-center text-[10px] font-black text-slate-400 tracking-wide">
                         {h}:00
                       </div>
                     ))}
                   </div>
 
-                  {/* Grid rows */}
-                  <div className="space-y-4">
+                  {/* Resource rows */}
+                  <div className="space-y-3">
                     {resources.length === 0 && (
-                       <div className="text-center py-10 text-gray-400 text-sm font-medium">No active resources available for booking.</div>
+                      <div className="text-center py-12 text-slate-400 text-sm font-medium">No active resources available.</div>
                     )}
                     {resources.map(resource => {
                       const meta = RESOURCE_METADATA_MAP[resource.type] || RESOURCE_METADATA_MAP['DESK'];
                       return (
-                      <div key={resource.id} className="flex items-center group transition-opacity duration-500">
-                        <div className="w-64 flex items-center pr-4">
-                          <div className={`p-2.5 rounded-xl mr-3 shadow-sm transition-colors ${meta.bgClass} ${meta.textClass}`}>
-                            {meta.icon}
-                          </div>
-                          <div>
-                            <div className="text-sm font-bold text-gray-800">{resource.name}</div>
-                            <div className="text-[10px] font-bold text-gray-400 mt-0.5">{meta.meta}</div>
-                          </div>
-                        </div>
-                        
-                        {HOURS.map(h => {
-                          const booked = isBooked(resource.id, h);
-                          const isSelected = selectedSlot?.resourceId === resource.id && 
-                                             h >= selectedSlot.hour && 
-                                             h < selectedSlot.hour + selectedSlot.duration;
-                                             
-                          // 4. FLASH HIGHLIGHT LOGIC
-                          const flashEntry = flashSlots.find(f => f.resourceId === resource.id && f.hour === h);
-                          const flashClass = flashEntry 
-                              ? (flashEntry.type === 'booked' ? 'animate-flash-red' : 'animate-flash-green') 
-                              : '';
-                          
-                          return (
-                            <div key={h} className="flex-1 px-1 h-12">
-                              <button
-                                onClick={() => handleSlotClick(resource.id, h)}
-                                disabled={booked}
-                                className={`
-                                  w-full h-full rounded-xl border transition-all duration-300 relative overflow-hidden focus:outline-none
-                                  ${flashClass}
-                                  ${booked 
-                                    ? (flashEntry?.type === 'booked' ? '' : 'bg-gray-100/80 border-gray-200/60 cursor-not-allowed')
-                                    : isSelected 
-                                      ? 'bg-orange-500 border-orange-500 shadow-lg shadow-orange-500/30 scale-105 z-10 text-white' 
-                                      : (flashEntry?.type === 'freed' ? '' : 'bg-gray-50/50 border-gray-200 hover:border-orange-300 hover:bg-orange-50 hover:shadow-sm cursor-pointer')}
-                                `}
-                              >
-                                {booked && !flashClass && (
-                                  <div className="absolute inset-0 opacity-[0.15] bg-[repeating-linear-gradient(45deg,#000,#000_2px,transparent_2px,transparent_8px)]"></div>
-                                )}
-                              </button>
+                        <div key={resource.id} className="flex items-center">
+                          {/* Label */}
+                          <div className="w-60 flex items-center gap-2.5 pr-4 flex-shrink-0">
+                            <div className={`p-2 rounded-lg flex-shrink-0 ${meta.accentBg} ${meta.accentText}`}>
+                              {meta.icon}
                             </div>
-                          );
-                        })}
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-slate-800 truncate">{resource.name}</div>
+                              <div className="text-[9px] font-semibold text-slate-400 mt-0.5 truncate">{meta.meta}</div>
+                            </div>
+                          </div>
+
+                          {/* Hour cells */}
+                          {HOURS.map(h => {
+                            const booked = isBooked(resource.id, h);
+                            const isSelected = selectedSlot?.resourceId === resource.id &&
+                              h >= selectedSlot.hour &&
+                              h < selectedSlot.hour + selectedSlot.duration;
+
+                            const flashEntry = flashSlots.find(f => f.resourceId === resource.id && f.hour === h);
+                            const flashClass = flashEntry
+                              ? (flashEntry.type === 'booked' ? 'animate-flash-red' : 'animate-flash-green')
+                              : '';
+
+                            return (
+                              <div key={h} className="flex-1 px-[3px] h-11">
+                                <button
+                                  onClick={() => handleSlotClick(resource.id, h)}
+                                  disabled={booked}
+                                  className={`
+                                    w-full h-full rounded-lg border relative overflow-hidden transition-all duration-200 focus:outline-none
+                                    ${flashClass}
+                                    ${booked
+                                      ? (flashEntry?.type === 'booked' ? '' : 'cursor-not-allowed border-slate-200 bg-slate-100/60')
+                                      : isSelected
+                                        ? 'bg-blue-600 border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.45)] scale-105 z-10'
+                                        : (flashEntry?.type === 'freed' ? '' : 'bg-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] border-slate-200 hover:border-blue-300 hover:bg-blue-50 cursor-pointer hover:scale-105')
+                                    }
+                                  `}
+                                >
+                                  {/* Diagonal stripe for booked cells */}
+                                  {booked && !flashClass && (
+                                    <div className="absolute inset-0 opacity-[0.12] bg-[repeating-linear-gradient(45deg,#334155,#334155_1.5px,transparent_1.5px,transparent_7px)]" />
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex items-center gap-5 mt-5 pt-4 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-white border border-slate-200 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)]" />
+                      <span className="text-[10px] font-semibold text-slate-400">Available</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-slate-100 border border-slate-200 overflow-hidden relative">
+                        <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,#334155,#334155_1.5px,transparent_1.5px,transparent_7px)]" />
                       </div>
-                    )})}
+                      <span className="text-[10px] font-semibold text-slate-400">Booked</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded bg-blue-600 border border-blue-500 shadow-[0_0_8px_rgba(37,99,235,0.4)]" />
+                      <span className="text-[10px] font-semibold text-slate-400">Selected</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -252,65 +258,74 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {/* RIGHT PANE: 30% CONSOLE */}
-        <div className="w-full xl:w-[30%] space-y-6 mt-6 xl:mt-0">
-          
-          {/* Intelligent Console Card */}
-          <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-600 to-amber-500 p-5 text-white">
-              <h2 className="font-bold text-lg flex items-center tracking-wide">
-                <Clock className="w-5 h-5 mr-2" />
+        {/* ────────── RIGHT PANE: CONSOLE ────────── */}
+        <div className="w-full xl:w-[30%] space-y-5 mt-1 xl:mt-0 sticky top-4">
+
+          {/* Glassmorphism Booking Console */}
+          <div className="backdrop-blur-md bg-white/80 border border-slate-200/50 shadow-xl rounded-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-4">
+              <h2 className="font-bold text-white flex items-center gap-2 tracking-wide text-sm">
+                <Zap className="w-4 h-4" />
                 Booking Console
               </h2>
             </div>
-            
-            <div className="p-6">
-              {/* Daily Quota Indicator */}
-              <div className="mb-6 bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Daily Quota (Today)</span>
-                  <span className="text-sm font-bold text-gray-900">{remainingQuota}h / {dailyQuota}h Left</span>
+
+            <div className="p-5">
+              {/* Quota Progress */}
+              <div className="mb-5">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.12em]">Daily Quota</span>
+                  <span className={`text-xs font-bold ${remainingQuota <= 1 ? 'text-red-500' : 'text-slate-600'}`}>
+                    {remainingQuota}h remaining
+                  </span>
                 </div>
-                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-500 ${remainingQuota <= 1 ? 'bg-red-500' : 'bg-green-500'}`}
-                    style={{ width: `${((dailyQuota - remainingQuota) / dailyQuota) * 100}%` }}
-                  ></div>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      quotaPct >= 100 ? 'bg-red-500' : quotaPct > 60 ? 'bg-amber-400' : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(quotaPct, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[9px] text-slate-400 font-semibold">{usedHours}h used</span>
+                  <span className="text-[9px] text-slate-400 font-semibold">{dailyQuota}h limit</span>
                 </div>
               </div>
 
+              {/* Alerts */}
               {errorMsg && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm font-medium flex items-start animate-in fade-in">
-                  <AlertCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold flex items-start gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                   {errorMsg}
                 </div>
               )}
-
               {successMsg && (
-                <div className="mb-4 p-3 bg-green-50 border border-green-100 text-green-600 rounded-lg text-sm font-medium flex items-start animate-in fade-in">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl text-xs font-semibold flex items-start gap-2">
+                  <CheckCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
                   {successMsg}
                 </div>
               )}
 
+              {/* Selection UI */}
               {selectedSlot ? (
-                <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-3 p-3 bg-orange-50 text-orange-800 rounded-xl border border-orange-100">
-                    <div className="p-2 bg-white rounded-lg shadow-sm">
-                      {selectedResource?.type === 'ROOM' ? <Users size={16} className="text-orange-600"/> : <Monitor size={16} className="text-orange-600"/>}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-3.5 bg-blue-50 border border-blue-100 rounded-xl">
+                    <div className="p-2 bg-white rounded-lg shadow-sm text-blue-600 flex-shrink-0">
+                      {selectedResource?.type === 'ROOM' ? <Users size={14} /> : <Monitor size={14} />}
                     </div>
-                    <div>
-                      <div className="font-bold text-sm">{selectedResource?.name}</div>
-                      <div className="text-xs opacity-80">{selectedSlot.hour}:00 Start Time</div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-blue-900 truncate">{selectedResource?.name}</div>
+                      <div className="text-[10px] text-blue-500 font-semibold mt-0.5">{selectedSlot.hour}:00 start</div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Duration (Hours)</label>
-                    <select 
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.12em] mb-1.5">Duration</label>
+                    <select
                       value={selectedSlot.duration}
-                      onChange={(e) => setSelectedSlot({...selectedSlot, duration: parseInt(e.target.value)})}
-                      className="w-full bg-white border border-gray-300 rounded-xl py-2.5 px-3 text-sm font-medium text-gray-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all shadow-sm"
+                      onChange={(e) => setSelectedSlot({ ...selectedSlot, duration: parseInt(e.target.value) })}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 outline-none transition-all shadow-sm"
                     >
                       <option value={1}>1 Hour</option>
                       <option value={2}>2 Hours</option>
@@ -320,99 +335,99 @@ export default function BookingPage() {
                   </div>
 
                   {isQuotaExceeded && (
-                    <p className="text-xs font-bold text-red-500">
-                      You only have {remainingQuota} hours left today. Please reduce duration.
+                    <p className="text-[11px] font-bold text-red-500 animate-pulse">
+                      ⚠ Only {remainingQuota}h remaining today. Please reduce duration.
                     </p>
                   )}
 
-                  <div className="flex gap-3 pt-2">
-                    <button 
+                  <div className="flex gap-2 pt-1">
+                    <button
                       onClick={() => setSelectedSlot(null)}
-                      className="flex-1 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
                       disabled={submitting}
+                      className="flex-1 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all active:scale-95 duration-100 disabled:opacity-50"
                     >
                       Cancel
                     </button>
-                    <button 
+                    <button
                       onClick={handleConfirmBooking}
                       disabled={submitting || !!isQuotaExceeded}
-                      className="flex-[2] py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-xl shadow-lg shadow-orange-600/30 transition-all disabled:opacity-50 disabled:shadow-none flex justify-center items-center"
+                      className="flex-[2] py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-600/30 transition-all active:scale-95 duration-100 disabled:opacity-50 disabled:shadow-none flex justify-center items-center gap-2"
                     >
                       {submitting ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      ) : (
-                        'Confirm Booking'
-                      )}
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : 'Confirm Booking'}
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                  <Monitor className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm font-medium">Select a slot on the grid to book.</p>
+                <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                  <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                    <Monitor className="w-5 h-5 text-slate-300" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-400 leading-relaxed">Click any available cell<br />on the grid to begin.</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* My Itinerary Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col max-h-[500px]">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <h2 className="font-bold text-gray-800 flex items-center tracking-wide">
-                <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+          {/* My Itinerary */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col max-h-[460px]">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm tracking-tight">
+                <Calendar className="w-4 h-4 text-slate-400" />
                 My Itinerary
               </h2>
-              <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-full">
+              <span className="bg-slate-100 text-slate-600 text-[10px] font-black px-2 py-0.5 rounded-full">
                 {myBookings.length}
               </span>
             </div>
-            
+
             <div className="overflow-y-auto p-4 flex-1">
               {myBookings.length === 0 ? (
-                /* 3. EMPTY STATE */
-                <div className="text-center py-10 animate-in fade-in duration-500">
-                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
-                     <CalendarX className="w-8 h-8 text-gray-300" />
+                <div className="text-center py-10">
+                  <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-slate-100">
+                    <CalendarX className="w-6 h-6 text-slate-300" />
                   </div>
-                  <p className="text-sm font-medium text-gray-500 leading-relaxed max-w-[250px] mx-auto">
-                    No itineraries scheduled for today. Pick a hot desk or meeting room from the grid to jumpstart your day!
+                  <p className="text-xs font-semibold text-slate-400 leading-relaxed max-w-[200px] mx-auto">
+                    No scheduled sessions yet. Book a workspace above to get started!
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {myBookings.map(b => {
-                    // Lock logic
                     const isToday = b.bookingDate === todayStr;
                     const isPastHour = isToday && currentHour >= b.startHour;
                     const isLocked = b.bookingDate < todayStr || isPastHour;
 
                     return (
-                      <div key={b.id} className="p-4 bg-white border border-gray-100 hover:border-orange-200 rounded-xl shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                      <div key={b.id} className={`p-3.5 rounded-xl border transition-all duration-200 relative overflow-hidden
+                        ${isLocked ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-200 hover:border-blue-200 hover:shadow-sm'}`}
+                      >
                         {isLocked && (
-                          <div className="absolute top-0 right-0 w-16 h-16 overflow-hidden">
-                            <div className="absolute top-4 -right-5 bg-gray-200 text-gray-500 text-[9px] font-bold uppercase tracking-widest px-6 py-0.5 rotate-45 shadow-sm">
+                          <div className="absolute top-0 right-0 w-12 h-12 overflow-hidden">
+                            <div className="absolute top-3 -right-4 bg-slate-300 text-slate-600 text-[8px] font-black uppercase tracking-widest px-5 py-0.5 rotate-45">
                               Locked
                             </div>
                           </div>
                         )}
                         <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-bold text-sm text-gray-900">{b.resource.name}</div>
-                            <div className="text-xs text-gray-500 font-medium mt-1">
-                              {b.bookingDate} &bull; {b.startHour}:00 - {b.endHour}:00
+                          <div className="min-w-0 pr-2">
+                            <div className="font-bold text-xs text-slate-900 truncate">{b.resource.name}</div>
+                            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                              {b.bookingDate} · {b.startHour}:00 – {b.endHour}:00
                             </div>
                           </div>
                           <button
                             onClick={() => requestCancelBooking(b)}
                             disabled={isLocked}
-                            title={isLocked ? "Cannot cancel past or locked bookings" : "Cancel booking"}
-                            className={`p-2 rounded-lg transition-colors ${
-                              isLocked 
-                                ? 'text-gray-300 cursor-not-allowed' 
-                                : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                            title={isLocked ? 'Cannot cancel locked bookings' : 'Cancel booking'}
+                            className={`p-1.5 rounded-lg transition-all flex-shrink-0 active:scale-95 duration-100 ${
+                              isLocked
+                                ? 'text-slate-300 cursor-not-allowed'
+                                : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
                             }`}
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       </div>
@@ -422,34 +437,32 @@ export default function BookingPage() {
               )}
             </div>
           </div>
-
         </div>
       </div>
-      
-      {/* Confirmation Modal */}
-      {confirmModal && confirmModal.isOpen && (
+
+      {/* ── Confirmation Modal ── */}
+      {confirmModal?.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setConfirmModal(null)}></div>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setConfirmModal(null)} />
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden border border-slate-100">
             <div className="p-6">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 text-red-600">
-                  <AlertCircle size={24} />
+                <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 text-red-500">
+                  <AlertCircle size={20} />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">{confirmModal.title}</h3>
+                <h3 className="text-base font-bold text-slate-900">{confirmModal.title}</h3>
               </div>
-              <p className="text-gray-600 text-sm leading-relaxed mb-8">{confirmModal.message}</p>
-              
+              <p className="text-slate-500 text-sm leading-relaxed mb-7">{confirmModal.message}</p>
               <div className="flex gap-3 justify-end">
-                <button 
+                <button
                   onClick={() => setConfirmModal(null)}
-                  className="px-4 py-2 font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all active:scale-95 duration-100"
                 >
                   Keep Booking
                 </button>
-                <button 
+                <button
                   onClick={confirmModal.onConfirm}
-                  className="px-5 py-2 font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors"
+                  className="px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition-all active:scale-95 duration-100"
                 >
                   Confirm Cancel
                 </button>
